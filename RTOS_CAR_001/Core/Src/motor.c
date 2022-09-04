@@ -139,6 +139,7 @@ void Ccw()
 void Stop()
 {
 
+
 	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
 	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_3);
