@@ -29,6 +29,7 @@
 #include "string.h"
 #include "motor.h"
 #include "usart.h"
+#include "hcsr04.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,8 +39,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TIMCLOCK   90000000
-#define PRESCALAR  90
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -53,21 +53,16 @@
 osThreadId     Task1Handle;
 osThreadId     Task2Handle;
 
-uint32_t IC_Val1[3] = {0};
-uint32_t IC_Val2[3] = {0};
+
 /*
  * Distance[0], Difference[0] = Left
  * Distance[1], Difference[1] = Front
  * Distance[2], Difference[2] = Right
  * */
 
-uint32_t Difference[3] = {0};
-uint32_t Distance[3]  = {0};
-int Is_First_Captured[3] = {0};
-float refClock = TIMCLOCK/(PRESCALAR);
+uint32_t Dis[3];
 
-/* Measure Frequency */
-float frequency[3] = {0};
+
 
 osThreadId     HS_SR04_Left_Checking;
 osThreadId     HS_SR04_Front_Checking;
@@ -92,8 +87,7 @@ int __io_putchar(int ch) {
 
 void ThreadInit () ;
 
-void HCSR04_Read (TIM_HandleTypeDef *htim, GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
-void delay (uint16_t time, TIM_HandleTypeDef *htim);
+
 
 void CheckingUartReceive (void const * argument);
 void CheckingLeft (void const * argument);
@@ -235,7 +229,7 @@ void CarLeftSide (void const * argument){
 //		if(Left_Distance < 250) {
 //			Move(STOP);
 //		}
-		sprintf(rx1_buf, "L%d", Distance[0]);
+		sprintf(rx1_buf, "L%d", Dis[0]);
 		HAL_UART_Transmit(&huart6, &rx1_buf, sizeof(rx1_buf), 100);
 		osDelay(500);
 	}
@@ -303,23 +297,6 @@ void CheckingRight (void const * argument) {
     }
 }
 
-void delay (uint16_t time, TIM_HandleTypeDef *htim)
-{
-	__HAL_TIM_SET_COUNTER(htim, 0);
-	while (__HAL_TIM_GET_COUNTER (htim) < time);
-
-}
-
-void HCSR04_Read (TIM_HandleTypeDef *htim, GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin)
-{
-
-	HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 1);	// pull the TRIG pin HIGH
-	delay(10, htim);  // wait for 10 us
-	HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 0);  // pull the TRIG pin low
-	__HAL_TIM_ENABLE_IT(htim, TIM_IT_CC1); // enable Interrupt
-}
-
-
 // CallBack Session
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -351,48 +328,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
    */
 }
 
-// calculate the distance of HC_SR04
-void HC_SRO4_Dis(TIM_HandleTypeDef *htim, int num) {
-
-	if (Is_First_Captured[num] == 0) // if the first rising edge is not captured
-	{
-		Is_First_Captured[num] = 1;  // set the first captured as true
-		IC_Val1[num] = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1); // read the first value
-//		IC_Val1[num] = htim->Instance->CNT; // read the first value
-		IC_Val2[num] = 0;
-//		__HAL_TIM_SET_CAPTUREPOLARITY(htim, htim->Channel, TIM_INPUTCHANNELPOLARITY_FALLING);
-	}
-
-	else   // If the first rising edge is captured, now we will capture the second edge
-	{
-		IC_Val2[num] = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);  // read second value
-		//IC_Val2[num] = htim->Instance->CNT;
-
-		if (IC_Val2[num] > IC_Val1[num])
-		{
-			Difference[num] = IC_Val2[num]-IC_Val1[num];
-		}
-
-		else if (IC_Val1[num] > IC_Val2[num])
-		{
-
-			//TIM 1,3,4 is 16bit so overflow is occured when the cnt value is 0xffff
-			Difference[num] = (0xffff + IC_Val2[num]) - IC_Val1[num];
-		}
-
-//		frequency[num] = refClock/Difference[num];
-		Distance[num] = Difference[num]*340/2000;
-
-		//__HAL_TIM_SET_COUNTER(&htim3, 0);  // reset the counter
-//		htim->Instance->CNT = 0;
-
-//		__HAL_TIM_SET_CAPTUREPOLARITY(htim, htim->Channel, TIM_INPUTCHANNELPOLARITY_RISING);
-		Is_First_Captured[num] = 0; // set it back to false
-
-		//htim is address
-		__HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
-	}
-}
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
