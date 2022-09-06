@@ -64,7 +64,7 @@ osThreadId     Task2Handle;
  * */
 
 uint32_t Dis[3];
-
+uint32_t temp_count[4];
 
 
 osThreadId     HS_SR04_Left_Checking;
@@ -97,7 +97,7 @@ void CheckingLeft (void const * argument);
 void CheckingFront (void const * argument);
 void CheckingRight (void const * argument);
 /** Car Control Using RasberryPi*/
-void UartMovingCar (void const * argument);
+void odometryTask (void const * argument);
 void CarLeftSide (void const * argument);
 void CarFrontSide (void const * argument);
 void CarRightSide (void const * argument);
@@ -224,46 +224,44 @@ void StartDefaultTask(void const * argument)
  * */
 
 // Task ---------------------------------------------------------------------------------------
-void UartMovingCar (void const * argument)
+void odometryTask (void const * argument)
 {
 	for (;;) {
-		osDelay(50);
+//		TIM2->CCR4++;//odo_count[0]
+//		TIM2->CCR3++;//odo_count[1]
+//		TIM2->CCR2++;//odo_count[3]
+//		TIM2->CCR1++;//odo_count[2]
+//		uint32_t temp_count[4];
+
+
+		for(int i = 0; i < 4; i++) {
+			temp_count[i] = odo_count[i];
+			odo_count[i] = 0;
+		}
+
+		osDelay(1000);
 	}
 }
 
 void CarLeftSide (void const * argument){
-	uint8_t rx1_buf[100];
+
 	for (;;) {
-//		uint32_t Left_Distance = Distance[0];
-//		if(Left_Distance < 250) {
-//			Move(STOP);
-//		}
-		sprintf(rx1_buf, "L%d", Dis[0]);
-		HAL_UART_Transmit(&huart6, &rx1_buf, sizeof(rx1_buf), 100);
+
 		osDelay(500);
 	}
 }
 
 void CarFrontSide (void const * argument){
-	uint8_t rx2 = '2';
+
 	for (;;) {
-//		uint32_t Front_Distance = Distance[1];
-//		if(Front_Distance < 250) {
-//			Move(STOP);
-//		}
-		HAL_UART_Transmit(&huart6, &rx2, 1, 100);
+
 		osDelay(500);
 	}
 }
 void CarRightSide (void const * argument){
-	uint8_t rx3 = '3';
 
 	for (;;) {
-//		uint32_t Right_Distance = Distance[2];
-//		if(Right_Distance < 250) {
-//			Move(STOP);
-//		}
-		HAL_UART_Transmit(&huart6, &rx3, 1, 100);
+
 		osDelay(500);
 	}
 }
@@ -293,7 +291,7 @@ void CheckingFront (void const * argument) {
     /* Infinite loop */
     for(;;)
     {
-   	HCSR04_Read(&htim3, GPIOA, GPIO_PIN_5);
+    	HCSR04_Read(&htim3, GPIOA, GPIO_PIN_5);
     	osDelay(60);
     }
 }
@@ -386,8 +384,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 				odo_count[3]++;
 			}
 		}
-
-
 	}
 }
 
@@ -401,7 +397,7 @@ void ThreadInit () {
 	  if(!Task1Handle)
 		  printf("ERR : Console Task Creation Failure !\r\n");
 
-	  osThreadDef(UartTask, UartMovingCar, osPriorityNormal, 0,configMINIMAL_STACK_SIZE*1);
+	  osThreadDef(UartTask, odometryTask, osPriorityNormal, 0,configMINIMAL_STACK_SIZE*1);
 	  Task2Handle = osThreadCreate(osThread(UartTask), NULL);
 
 	  if(!Task2Handle)
