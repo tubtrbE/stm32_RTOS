@@ -39,7 +39,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+typedef enum {
+	UP,
+	DOWN
+}ODO_STAT;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,7 +58,6 @@
 
 osThreadId     Task1Handle;
 osThreadId     Task2Handle;
-
 
 /*
  * Distance[0], Difference[0] = Left
@@ -83,13 +85,14 @@ osSemaphoreId UartSemaHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-int __io_putchar(int ch) {
-    HAL_UART_Transmit(&huart3, &ch, 1, 1000);
-    return ch;
-}
+//int __io_putchar(int ch) {
+//    HAL_UART_Transmit(&huart3, &ch, 1, 1000);
+//    return ch;
+//}
+
 
 void ThreadInit () ;
-
+int odo_adjust (int odo_num, ODO_STAT odo_status);
 
 
 void CheckingUartReceive (void const * argument);
@@ -227,15 +230,22 @@ void StartDefaultTask(void const * argument)
 void odometryTask (void const * argument)
 {
 	for (;;) {
-//		TIM2->CCR4++;//odo_count[0]
-//		TIM2->CCR3++;//odo_count[1]
-//		TIM2->CCR2++;//odo_count[3]
-//		TIM2->CCR1++;//odo_count[2]
+
+
 //		uint32_t temp_count[4];
 
-
+		// check the safety maximun speed
+		// and add some Algorithms
 		for(int i = 0; i < 4; i++) {
 			temp_count[i] = odo_count[i];
+
+			if (odo_count[i] > 200) {
+				odo_adjust(i, DOWN);
+			}
+			else if (odo_count[i] > 200 - 5) {
+				odo_adjust(i, UP);
+			}
+
 			odo_count[i] = 0;
 		}
 
@@ -436,4 +446,56 @@ void ThreadInit () {
 	  if(!HS_SR04_Right_Handle)
 		  printf("ERR : HS_SR04_Right_Handle Creation Failure !\r\n");
 }
+
+
+
+//Func
+int odo_adjust (int odo_num, ODO_STAT odo_status) {
+	//		TIM2->CCR4++;//odo_count[0]
+	//		TIM2->CCR3++;//odo_count[1]
+	//		TIM2->CCR1++;//odo_count[2]
+	//		TIM2->CCR2++;//odo_count[3]
+
+
+	if (odo_num == 0 || odo_status == UP) {
+		TIM2->CCR4++;
+		return 1;
+	}
+	else if (odo_num == 0 || odo_status == DOWN) {
+		TIM2->CCR4--;
+		return 2;
+	}
+//---------------------------------------------------------------------
+	if (odo_num == 1 || odo_status == UP) {
+		TIM2->CCR3++;
+		return 1;
+	}
+	else if (odo_num == 1 || odo_status == DOWN) {
+		TIM2->CCR3--;
+		return 2;
+	}
+//---------------------------------------------------------------------
+	if (odo_num == 2 || odo_status == UP) {
+		TIM2->CCR1++;
+		return 1;
+	}
+	else if (odo_num == 2 || odo_status == DOWN) {
+		TIM2->CCR1--;
+		return 2;
+	}
+//---------------------------------------------------------------------
+	if (odo_num == 3 || odo_status == UP) {
+		TIM2->CCR2++;
+		return 1;
+	}
+	else if (odo_num == 3 || odo_status == DOWN) {
+		TIM2->CCR2--;
+		return 2;
+	}
+//---------------------------------------------------------------------
+	return 0;
+}
+
+
+
 /* USER CODE END Application */
