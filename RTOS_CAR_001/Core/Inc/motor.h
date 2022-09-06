@@ -11,7 +11,10 @@
 #include "main.h"
 #include "tim.h"
 
-#define SPEED 950
+#define SPEED 500
+
+extern uint8_t odo_flag[4];
+extern uint32_t odo_count[4];
 
 typedef enum {
 	STOP,

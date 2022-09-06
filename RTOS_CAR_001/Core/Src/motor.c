@@ -6,6 +6,9 @@
  */
 #include "motor.h"
 
+uint8_t odo_flag[4];
+uint32_t odo_count[4];
+
 void Move(int controlcmd){
 
 	switch(controlcmd){
@@ -14,45 +17,72 @@ void Move(int controlcmd){
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 0);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 0);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
+
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 1;
+			}
 			break;
 		case BACKWARD:
 			Backward();
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 0);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 1);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 1;
+			}
 			break;
 		case LEFT:
 			Left();
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 1);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 0);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 1;
+			}
 			break;
 		case RIGHT:
 			Right();
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 0);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 1);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 1;
+			}
 			break;
 		case CW:
 			Cw();
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 1);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 1);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 1;
+			}
 			break;
 		case CCW:
 			Ccw();
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 1);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 1);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 1;
+			}
 			break;
 		case STOP:
 			Stop();
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, 0);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, 0);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 0;
+				odo_count[i] = 0;
+			}
 			break;
 		default:
 			Stop();
+			for(int i = 0; i < 4; i++) {
+				odo_flag[i] = 0;
+				odo_count[i] = 0;
+			}
 			break;
 		}
 }

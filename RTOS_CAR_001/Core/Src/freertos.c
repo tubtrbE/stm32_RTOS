@@ -50,6 +50,9 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 
+//uint8_t odo_flag;
+//uint32_t odo_count;
+
 osThreadId     Task1Handle;
 osThreadId     Task2Handle;
 
@@ -131,6 +134,12 @@ void MX_FREERTOS_Init(void) {
 	  HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
 	  HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
 	  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
+
+	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_1);
+	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_2);
+	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_3);
+	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_4);
+
 	  HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
   /* USER CODE END Init */
 
@@ -353,6 +362,32 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 		{
 			HC_SRO4_Dis(htim, 2);
 		}
+	}
+
+	//using the general purpose timer because i will use checking the signal only
+	if (htim->Instance == TIM8) {
+		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
+			if (odo_flag[0] == 1) {
+				odo_count[0]++;
+			}
+		}
+		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
+			if (odo_flag[1] == 1) {
+				odo_count[1]++;
+			}
+		}
+		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
+			if (odo_flag[2] == 1) {
+				odo_count[2]++;
+			}
+		}
+		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4) {
+			if (odo_flag[3] == 1) {
+				odo_count[3]++;
+			}
+		}
+
+
 	}
 }
 
