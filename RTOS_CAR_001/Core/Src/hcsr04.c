@@ -12,8 +12,8 @@
 uint32_t IC_Val1[3] = {0};
 uint32_t IC_Val2[3] = {0};
 
-uint32_t Difference[3] = {0};
 uint32_t Distance[3]  = {0};
+uint32_t Difference[3] = {0};
 int Is_First_Captured[3] = {0};
 float refClock = TIMCLOCK/(PRESCALAR);
 
@@ -44,6 +44,7 @@ uint32_t HC_SRO4_Dis(TIM_HandleTypeDef *htim, int num) {
 //		IC_Val1[num] = htim->Instance->CNT; // read the first value
 		IC_Val2[num] = 0;
 //		__HAL_TIM_SET_CAPTUREPOLARITY(htim, htim->Channel, TIM_INPUTCHANNELPOLARITY_FALLING);
+		return Distance[num];
 	}
 
 	else   // If the first rising edge is captured, now we will capture the second edge
@@ -66,6 +67,11 @@ uint32_t HC_SRO4_Dis(TIM_HandleTypeDef *htim, int num) {
 //		frequency[num] = refClock/Difference[num];
 		Distance[num] = Difference[num]*340/2000;
 
+		if(Distance[num] > 500) {
+			Distance[num] = 500;
+
+		}
+
 		//__HAL_TIM_SET_COUNTER(&htim3, 0);  // reset the counter
 //		htim->Instance->CNT = 0;
 
@@ -74,5 +80,9 @@ uint32_t HC_SRO4_Dis(TIM_HandleTypeDef *htim, int num) {
 
 		//htim is address
 		__HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
+
+		return Distance[num];
 	}
+
+	return Distance[num];
 }

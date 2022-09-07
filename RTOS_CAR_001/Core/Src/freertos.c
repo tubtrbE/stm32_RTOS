@@ -65,9 +65,13 @@ osThreadId     Task2Handle;
  * Distance[2], Difference[2] = Right
  * */
 
-uint32_t Dis[3];
+uint32_t hcsr04_dis[3];
 uint32_t temp_count[4];
-
+uint32_t pwm_val[4] = {865,865,870,870};
+uint8_t rx;
+int ratio = 5;
+int time = 1000;
+int speed = 200;
 
 osThreadId     HS_SR04_Left_Checking;
 osThreadId     HS_SR04_Front_Checking;
@@ -85,10 +89,10 @@ osSemaphoreId UartSemaHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-//int __io_putchar(int ch) {
-//    HAL_UART_Transmit(&huart3, &ch, 1, 1000);
-//    return ch;
-//}
+int __io_putchar(int ch) {
+    HAL_UART_Transmit(&huart3, &ch, 1, 1000);
+    return ch;
+}
 
 
 void ThreadInit () ;
@@ -143,6 +147,7 @@ void MX_FREERTOS_Init(void) {
 	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_3);
 	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_4);
 
+	  HAL_UART_Receive_IT(&huart3, &rx, 1);
 	  HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
   /* USER CODE END Init */
 
@@ -210,7 +215,16 @@ void StartDefaultTask(void const * argument)
 					&xHigherPriorityWasTaken);
 			if (ret) {
 				// do something . . .
-				Move(cByteRxed - '0');
+				if (cByteRxed - '0' < 7) {
+					Move(cByteRxed - '0');
+				}
+
+				if (cByteRxed == 'w') {
+					speed += 10;
+				}
+				else if (cByteRxed == 's') {
+					speed -= 10;
+				}
 			}
 		}
 		osDelay(50);
@@ -229,27 +243,28 @@ void StartDefaultTask(void const * argument)
 // Task ---------------------------------------------------------------------------------------
 void odometryTask (void const * argument)
 {
+
 	for (;;) {
-
-
 //		uint32_t temp_count[4];
 
 		// check the safety maximun speed
 		// and add some Algorithms
 		for(int i = 0; i < 4; i++) {
 			temp_count[i] = odo_count[i];
-
-			if (odo_count[i] > 200) {
-				odo_adjust(i, DOWN);
-			}
-			else if (odo_count[i] > 200 - 5) {
-				odo_adjust(i, UP);
-			}
-
 			odo_count[i] = 0;
+
+			if(odo_flag[i] == 1) {
+				if (temp_count[i] < (speed/ratio) ) {
+					odo_adjust(i, UP);
+				}
+				else if (temp_count[i] > (speed/ratio)) {
+					odo_adjust(i, DOWN);
+				}
+			}
+
 		}
 
-		osDelay(1000);
+		osDelay(time/ratio);
 	}
 }
 
@@ -257,7 +272,12 @@ void CarLeftSide (void const * argument){
 
 	for (;;) {
 
-		osDelay(500);
+		for(int i = 0; i < 3; i++) {
+			if(hcsr04_dis[i] < 400) {
+				Move(0);
+			}
+		}
+		osDelay(100);
 	}
 }
 
@@ -284,6 +304,7 @@ void CheckingUartReceive (void const * argument)
     /* Infinite loop */
     for(;;)
     {
+    	HAL_UART_Receive_IT(&huart3, &rx, 1);
     	HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
     	osDelay(10);
     }
@@ -337,6 +358,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
 
 	}
+
+
+
 //	portEND_SWITCHING_ISR( xHigherPriorityTaskWoken );
 
 
@@ -352,7 +376,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	if (htim->Instance == TIM1) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 		{
-			HC_SRO4_Dis(htim, 0);
+			hcsr04_dis[0] = HC_SRO4_Dis(htim, 0);
 		}
 	}
 
@@ -360,7 +384,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	if (htim->Instance == TIM3) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 		{
-			HC_SRO4_Dis(htim, 1);
+			hcsr04_dis[1] = HC_SRO4_Dis(htim, 1);
 		}
 	}
 
@@ -368,7 +392,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	if (htim->Instance == TIM4) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 		{
-			HC_SRO4_Dis(htim, 2);
+			hcsr04_dis[2] = HC_SRO4_Dis(htim, 2);
 		}
 	}
 
@@ -451,48 +475,48 @@ void ThreadInit () {
 
 //Func
 int odo_adjust (int odo_num, ODO_STAT odo_status) {
-	//		TIM2->CCR4++;//odo_count[0]
-	//		TIM2->CCR3++;//odo_count[1]
-	//		TIM2->CCR1++;//odo_count[2]
-	//		TIM2->CCR2++;//odo_count[3]
 
+	// safety speed
+	for(int i = 0; i < 4; i++) {
+		if (pwm_val[i] > 950) {
+			pwm_val[i] = 950;
+		}
+	}
 
-	if (odo_num == 0 || odo_status == UP) {
-		TIM2->CCR4++;
-		return 1;
+	if (odo_num == 0 && odo_status == UP) {
+		pwm_val[0] += 5;
 	}
-	else if (odo_num == 0 || odo_status == DOWN) {
-		TIM2->CCR4--;
-		return 2;
+	else if (odo_num == 0 && odo_status == DOWN) {
+		pwm_val[0] -= 5;
 	}
 //---------------------------------------------------------------------
-	if (odo_num == 1 || odo_status == UP) {
-		TIM2->CCR3++;
-		return 1;
+	if (odo_num == 1 && odo_status == UP) {
+		pwm_val[1] += 5;
 	}
-	else if (odo_num == 1 || odo_status == DOWN) {
-		TIM2->CCR3--;
-		return 2;
+	else if (odo_num == 1 && odo_status == DOWN) {
+		pwm_val[1] -= 5;
 	}
 //---------------------------------------------------------------------
-	if (odo_num == 2 || odo_status == UP) {
-		TIM2->CCR1++;
-		return 1;
+	if (odo_num == 2 && odo_status == UP) {
+		pwm_val[2] += 5;
 	}
-	else if (odo_num == 2 || odo_status == DOWN) {
-		TIM2->CCR1--;
-		return 2;
+	else if (odo_num == 2 && odo_status == DOWN) {
+		pwm_val[2] -= 5;
 	}
 //---------------------------------------------------------------------
-	if (odo_num == 3 || odo_status == UP) {
-		TIM2->CCR2++;
-		return 1;
+	if (odo_num == 3 && odo_status == UP) {
+		pwm_val[3] += 5;
 	}
-	else if (odo_num == 3 || odo_status == DOWN) {
-		TIM2->CCR2--;
-		return 2;
+	else if (odo_num == 3 && odo_status == DOWN) {
+		pwm_val[3] -= 5;
 	}
 //---------------------------------------------------------------------
+
+	TIM2->CCR4 = pwm_val[0];		//odo_count[0]
+	TIM2->CCR3 = pwm_val[1];		//odo_count[1]
+	TIM2->CCR1 = pwm_val[2];		//odo_count[2]
+	TIM2->CCR2 = pwm_val[3];		//odo_count[3]
+
 	return 0;
 }
 
