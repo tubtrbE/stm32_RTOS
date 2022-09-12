@@ -194,10 +194,15 @@ void changeNode(Node** start_pos, Node* current) {
 	}
 
 	//current is not head
+	//error is here
 	else {
 		Node* cur_prev = current->Prev;
 		Node* cur_next = current->Next;
 
+
+		if (cur_next->Next != NULL) {
+			cur_next->Next->Prev = current;
+		}
 		cur_next->Prev = current->Prev;
 		current->Prev = cur_next;
 
@@ -234,14 +239,42 @@ void ascendingNode(Node** start_pos) {
 	}
 }
 
+void descendingNode(Node** start_pos) {
+
+	//if change_count is 0 return and exit the func
+	int count_change = 0;
+	Node* scout = *start_pos;
+
+	while (scout->Next != NULL) {
+		if (scout->Data < scout->Next->Data) {
+			changeNode(start_pos, scout);
+			count_change++;
+			break;
+		}
+		scout = scout->Next;
+	}
+
+	if (count_change == 0) {
+		return;
+	}
+	else {
+		descendingNode(start_pos);
+	}
+}
+
 int main(void) {
-	Node* start = createNode(5);
-	for (int i = 4; i >= 1; i--) {
+	Node* start = createNode(0);
+	//for (int i = 4; i >= 1; i--) {
+	//	addNode(&start, createNode(i));
+	//}
+
+	for (int i = 1; i < 5; i++) {
 		addNode(&start, createNode(i));
 	}
 
 //	screenNode(start);
-	ascendingNode(&start);
+//	ascendingNode(&start);
+	descendingNode(&start);
 	screenNode(start);
 
 
