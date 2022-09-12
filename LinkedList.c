@@ -1,11 +1,9 @@
-#include "stdio.h"
-#include "stdlib.h"
+#include"LinkedList.h"
 
-typedef struct listNode {
-	int Data;
-	struct listNode* Next;
-	struct listNode* Prev;
-}Node;
+
+
+
+
 
 Node* createNode(int data) {
 
