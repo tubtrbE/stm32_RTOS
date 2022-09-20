@@ -68,6 +68,7 @@ osThreadId     Task2Handle;
 uint32_t hcsr04_dis[3];
 uint32_t temp_count[4];
 uint32_t pwm_val[4] = {865,865,870,870};
+//uint32_t pwm_val[4] = {950,950,950,950};
 uint8_t rx;
 int ratio = 5;
 int time = 1000;
@@ -170,7 +171,7 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the queue(s) */
   /* definition and creation of UartQueue */
-  osMessageQDef(UartQueue, 8, uint8_t);
+  osMessageQDef(UartQueue, 256, uint8_t);
   UartQueueHandle = osMessageCreate(osMessageQ(UartQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -245,7 +246,6 @@ void odometryTask (void const * argument)
 {
 
 	for (;;) {
-//		uint32_t temp_count[4];
 
 		// check the safety maximun speed
 		// and add some Algorithms
@@ -261,7 +261,6 @@ void odometryTask (void const * argument)
 					odo_adjust(i, DOWN);
 				}
 			}
-
 		}
 
 		osDelay(time/ratio);
@@ -270,22 +269,47 @@ void odometryTask (void const * argument)
 
 void CarLeftSide (void const * argument){
 
+	char dis[3][100];
+
+	// hcsr04 test
 	for (;;) {
 
-		for(int i = 0; i < 3; i++) {
-			if(hcsr04_dis[i] < 400) {
-				Move(0);
-			}
-		}
-		osDelay(100);
+//		for(int i = 0; i < 3; i++) {
+//			if(hcsr04_dis[i] < 200) {
+//				Move(0);
+//			}
+//		}
+
+		sprintf(dis[0],"L%03d", (int)hcsr04_dis[0]);
+		sprintf(dis[1],"F%03d", (int)hcsr04_dis[1]);
+		sprintf(dis[2],"R%03d", (int)hcsr04_dis[2]);
+
+
+//		HAL_UART_Transmit(&huart6, (uint8_t *)rx_start, 1, 100);
+//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[0], strlen(dis[0]), 100);
+//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[1], strlen(dis[1]), 100);
+//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[2], strlen(dis[2]), 100);
+//		HAL_UART_Transmit(&huart6, (uint8_t *)rx_end, 1, 100);
+
+		uint8_t rx_start = '<';
+		uint8_t rx_end = '>';
+
+		HAL_UART_Transmit(&huart6, &rx_start, 1, 100);
+		HAL_UART_Transmit(&huart6, (uint8_t*)dis[0], strlen(dis[0]), 100);
+		HAL_UART_Transmit(&huart6, (uint8_t*)dis[1], strlen(dis[1]), 100);
+		HAL_UART_Transmit(&huart6, (uint8_t*)dis[2], strlen(dis[2]), 100);
+		HAL_UART_Transmit(&huart6, &rx_end, 1, 100);
+
+
+		osDelay(1000);
 	}
 }
 
 void CarFrontSide (void const * argument){
 
 	for (;;) {
-
-		osDelay(500);
+    	HCSR04_Read(&htim1, GPIOF, GPIO_PIN_13);
+    	osDelay(60);
 	}
 }
 void CarRightSide (void const * argument){
@@ -313,8 +337,7 @@ void CheckingLeft (void const * argument) {
     /* Infinite loop */
     for(;;)
     {
-    	HCSR04_Read(&htim1, GPIOF, GPIO_PIN_13);
-
+//    	HCSR04_Read(&htim1, GPIOF, GPIO_PIN_13);
     	osDelay(60);
     }
 }
@@ -354,9 +377,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		else {
 			HAL_UART_Transmit(&huart6, (uint8_t*)pErrStr, strlen(pErrStr), 0xffff);
 		}
-
 		HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
-
 	}
 
 
