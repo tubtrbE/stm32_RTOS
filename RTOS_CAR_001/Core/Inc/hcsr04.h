@@ -12,8 +12,9 @@
 
 #define TIMCLOCK   90000000
 #define PRESCALAR  90
+#define DANGER_DIS 200
 
-//extern uint32_t Distance[3] = {0};
+extern uint32_t Distance[3];
 
 void HCSR04_Read (TIM_HandleTypeDef *htim, GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
 void HCSR04_Delay (uint16_t time, TIM_HandleTypeDef *htim);

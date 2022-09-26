@@ -13,9 +13,6 @@
 
 #define SPEED 500
 
-extern uint8_t odo_flag[4];
-extern uint32_t odo_count[4];
-
 typedef enum {
 	STOP,
 	FORWARD,
@@ -25,6 +22,14 @@ typedef enum {
 	CW,
 	CCW
 }CONTROLLER_SIGNAL;
+
+
+
+extern uint8_t odo_flag[4];
+extern uint32_t odo_count[4];
+
+
+
 
 void Move(int controlcmd);
 void Forward();

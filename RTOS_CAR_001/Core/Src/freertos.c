@@ -43,6 +43,12 @@ typedef enum {
 	UP,
 	DOWN
 }ODO_STAT;
+
+typedef enum {
+	AUTO,
+	HANDLE,
+}CONTROLLER_MODE;
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -65,14 +71,17 @@ osThreadId     Task2Handle;
  * Distance[2], Difference[2] = Right
  * */
 
-uint32_t hcsr04_dis[3];
-uint32_t temp_count[4];
+//uint32_t hcsr04_dis[3];
 uint32_t pwm_val[4] = {500,500,500,500};
 //uint32_t pwm_val[4] = {950,950,950,950};
 uint8_t rx;
 int ratio = 5;
 int time = 1000;
-int speed = 200;
+int speed = 100;
+CONTROLLER_MODE motor_mode;
+
+uint32_t before_count[4] = {0};
+uint32_t count_gap[4] = {0};
 
 osThreadId     HS_SR04_Left_Checking;
 osThreadId     HS_SR04_Front_Checking;
@@ -206,6 +215,7 @@ void StartDefaultTask(void const * argument)
     BaseType_t xHigherPriorityWasTaken = pdFALSE;
     BaseType_t ret = pdTRUE;      // if semaphore is ret you know that isr give you queue
     signed char cByteRxed = '\0'; // this value is what you receive
+    char odo[100] = {0};
 
   /* Infinite loop */
 	for (;;) {
@@ -219,6 +229,17 @@ void StartDefaultTask(void const * argument)
 			if (ret) {
 				// do something . . .
 				if (cByteRxed - '0' < 7) {
+					if(cByteRxed - '0' == 0) {
+						int sum = 0;
+						int avg = 0;
+						for(int i = 0; i < 4; i++) {
+							sum += odo_count[i];
+						}
+						avg = sum/4;
+
+						sprintf(odo,"<0,%04d>", avg);
+						HAL_UART_Transmit(&huart3, (uint8_t*)odo, strlen(odo), 100);
+					}
 					Move(cByteRxed - '0');
 				}
 
@@ -246,26 +267,28 @@ void StartDefaultTask(void const * argument)
 void CheckingSpeed(void const * argument)
 {
   /* USER CODE BEGIN TempTask01 */
-	char dis[3][100];
-
-
+//	uint32_t before_count[4] = {0};
+//	uint32_t count_gap[4] = {0};
   /* Infinite loop */
   for(;;)
   {
+
 		// check the safety maximun speed
 		// and add some Algorithms
 		for(int i = 0; i < 4; i++) {
-			temp_count[i] = odo_count[i];
-			odo_count[i] = 0;
+			count_gap[i] = odo_count[i] - before_count[i];
 
 			if(odo_flag[i] == 1) {
-				if (temp_count[i] < (speed/ratio) ) {
+				if (count_gap[i] < (speed/ratio) ) {
 					odo_adjust(i, UP);
 				}
-				else if (temp_count[i] > (speed/ratio)) {
+				else if (count_gap[i] > (speed/ratio)) {
 					odo_adjust(i, DOWN);
 				}
 			}
+			before_count[i] = odo_count[i];
+
+
 		}
 		osDelay(50);
   }
@@ -292,35 +315,47 @@ void odometryTask (void const * argument)
 
 void SonicDis (void const * argument){
 
-	char dis[3][100];
+	char dis[100];
+	char odo[100];
 
 	// hcsr04 test
 	for (;;) {
 
-		sprintf(dis[0],"L%03d", (int)hcsr04_dis[0]);
-		sprintf(dis[1],"F%03d", (int)hcsr04_dis[1]);
-		sprintf(dis[2],"R%03d", (int)hcsr04_dis[2]);
+		if(Distance[0] <= DANGER_DIS ||
+		   Distance[1] <= DANGER_DIS ||
+		   Distance[2] <= DANGER_DIS) {
 
-		uint8_t rx_start = '<';
-		uint8_t rx_end = '>';
+			if (motor_mode == AUTO) {
+//				sprintf(dis,"<L%03dF%03dR%03d>", (int)Distance[0],(int)Distance[1],(int)Distance[2]);
+				// when using desktop use this
+				HAL_UART_Transmit(&huart3, (uint8_t*)dis, strlen(dis), 100);
+
+				//when using rasberry pi use this
+				//HAL_UART_Transmit(&huart6, (uint8_t*)dis, strlen(dis), 100);
+
+				motor_mode = HANDLE;
+
+				int sum = 0;
+				int avg = 0;
+				for(int i = 0; i < 4; i++) {
+					sum += odo_count[i];
+				}
+				avg = sum/4;
+
+				sprintf(odo,"<1,%04d>", avg);
 
 
-		// when using desktop use this
-		HAL_UART_Transmit(&huart3, &rx_start, 1, 100);
-		HAL_UART_Transmit(&huart3, (uint8_t*)dis[0], strlen(dis[0]), 100);
-		HAL_UART_Transmit(&huart3, (uint8_t*)dis[1], strlen(dis[1]), 100);
-		HAL_UART_Transmit(&huart3, (uint8_t*)dis[2], strlen(dis[2]), 100);
-		HAL_UART_Transmit(&huart3, &rx_end, 1, 100);
+				HAL_UART_Transmit(&huart3, (uint8_t*)odo, strlen(odo), 100);
+				Move(0);
+			}
+		}
+		else if (Distance[0] > DANGER_DIS &&
+				 Distance[1] > DANGER_DIS &&
+				 Distance[2] > DANGER_DIS) {
+			motor_mode = AUTO;
+		}
 
-
-		//when using rasberry pi use this
-//		HAL_UART_Transmit(&huart6, &rx_start, 1, 100);
-//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[0], strlen(dis[0]), 100);
-//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[1], strlen(dis[1]), 100);
-//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[2], strlen(dis[2]), 100);
-//		HAL_UART_Transmit(&huart6, &rx_end, 1, 100);
-
-		osDelay(1000);
+		osDelay(100);
 	}
 }
 
@@ -428,7 +463,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	if (htim->Instance == TIM1) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 		{
-			hcsr04_dis[0] = HC_SRO4_Dis(htim, 0);
+			Distance[0] = HC_SRO4_Dis(htim, 0);
 		}
 	}
 
@@ -436,7 +471,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	if (htim->Instance == TIM3) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 		{
-			hcsr04_dis[1] = HC_SRO4_Dis(htim, 1);
+			Distance[1] = HC_SRO4_Dis(htim, 1);
 		}
 	}
 
@@ -444,7 +479,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	if (htim->Instance == TIM4) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 		{
-			hcsr04_dis[2] = HC_SRO4_Dis(htim, 2);
+			Distance[2] = HC_SRO4_Dis(htim, 2);
 		}
 	}
 
