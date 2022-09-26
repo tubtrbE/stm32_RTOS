@@ -67,7 +67,7 @@ osThreadId     Task2Handle;
 
 uint32_t hcsr04_dis[3];
 uint32_t temp_count[4];
-uint32_t pwm_val[4] = {865,865,870,870};
+uint32_t pwm_val[4] = {500,500,500,500};
 //uint32_t pwm_val[4] = {950,950,950,950};
 uint8_t rx;
 int ratio = 5;
@@ -85,16 +85,12 @@ uint8_t rx_data[2];
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
+osThreadId TempTaskHandle;
 osMessageQId UartQueueHandle;
 osSemaphoreId UartSemaHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-int __io_putchar(int ch) {
-    HAL_UART_Transmit(&huart3, &ch, 1, 1000);
-    return ch;
-}
-
 
 void ThreadInit () ;
 int odo_adjust (int odo_num, ODO_STAT odo_status);
@@ -106,13 +102,14 @@ void CheckingFront (void const * argument);
 void CheckingRight (void const * argument);
 /** Car Control Using RasberryPi*/
 void odometryTask (void const * argument);
-void CarLeftSide (void const * argument);
+void SonicDis (void const * argument);
 void CarFrontSide (void const * argument);
 void CarRightSide (void const * argument);
 
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
+void CheckingSpeed(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -148,7 +145,8 @@ void MX_FREERTOS_Init(void) {
 	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_3);
 	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_4);
 
-	  HAL_UART_Receive_IT(&huart3, &rx, 1);
+//	  HAL_UART_Receive_IT(&huart3, &rx, 1);
+	  HAL_UART_Receive_IT(&huart3, &rx_data[0], 1);
 	  HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
   /* USER CODE END Init */
 
@@ -183,6 +181,10 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  /* definition and creation of TempTask */
+  osThreadDef(TempTask, CheckingSpeed, osPriorityNormal, 0, 128);
+  TempTaskHandle = osThreadCreate(osThread(TempTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -220,10 +222,11 @@ void StartDefaultTask(void const * argument)
 					Move(cByteRxed - '0');
 				}
 
-				if (cByteRxed == 'w') {
+				else if (cByteRxed == 'w' || cByteRxed == 'W') {
 					speed += 10;
 				}
-				else if (cByteRxed == 's') {
+
+				else if (cByteRxed == 's' || cByteRxed == 'S') {
 					speed -= 10;
 				}
 			}
@@ -231,6 +234,42 @@ void StartDefaultTask(void const * argument)
 		osDelay(50);
 	}
   /* USER CODE END StartDefaultTask */
+}
+
+/* USER CODE BEGIN Header_TempTask01 */
+/**
+* @brief Function implementing the TempTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_TempTask01 */
+void CheckingSpeed(void const * argument)
+{
+  /* USER CODE BEGIN TempTask01 */
+	char dis[3][100];
+
+
+  /* Infinite loop */
+  for(;;)
+  {
+		// check the safety maximun speed
+		// and add some Algorithms
+		for(int i = 0; i < 4; i++) {
+			temp_count[i] = odo_count[i];
+			odo_count[i] = 0;
+
+			if(odo_flag[i] == 1) {
+				if (temp_count[i] < (speed/ratio) ) {
+					odo_adjust(i, UP);
+				}
+				else if (temp_count[i] > (speed/ratio)) {
+					odo_adjust(i, DOWN);
+				}
+			}
+		}
+		osDelay(50);
+  }
+  /* USER CODE END TempTask01 */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -247,59 +286,39 @@ void odometryTask (void const * argument)
 
 	for (;;) {
 
-		// check the safety maximun speed
-		// and add some Algorithms
-		for(int i = 0; i < 4; i++) {
-			temp_count[i] = odo_count[i];
-			odo_count[i] = 0;
 
-			if(odo_flag[i] == 1) {
-				if (temp_count[i] < (speed/ratio) ) {
-					odo_adjust(i, UP);
-				}
-				else if (temp_count[i] > (speed/ratio)) {
-					odo_adjust(i, DOWN);
-				}
-			}
-		}
-
-		osDelay(time/ratio);
 	}
 }
 
-void CarLeftSide (void const * argument){
+void SonicDis (void const * argument){
 
 	char dis[3][100];
 
 	// hcsr04 test
 	for (;;) {
 
-//		for(int i = 0; i < 3; i++) {
-//			if(hcsr04_dis[i] < 200) {
-//				Move(0);
-//			}
-//		}
-
 		sprintf(dis[0],"L%03d", (int)hcsr04_dis[0]);
 		sprintf(dis[1],"F%03d", (int)hcsr04_dis[1]);
 		sprintf(dis[2],"R%03d", (int)hcsr04_dis[2]);
 
-
-//		HAL_UART_Transmit(&huart6, (uint8_t *)rx_start, 1, 100);
-//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[0], strlen(dis[0]), 100);
-//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[1], strlen(dis[1]), 100);
-//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[2], strlen(dis[2]), 100);
-//		HAL_UART_Transmit(&huart6, (uint8_t *)rx_end, 1, 100);
-
 		uint8_t rx_start = '<';
 		uint8_t rx_end = '>';
 
-		HAL_UART_Transmit(&huart6, &rx_start, 1, 100);
-		HAL_UART_Transmit(&huart6, (uint8_t*)dis[0], strlen(dis[0]), 100);
-		HAL_UART_Transmit(&huart6, (uint8_t*)dis[1], strlen(dis[1]), 100);
-		HAL_UART_Transmit(&huart6, (uint8_t*)dis[2], strlen(dis[2]), 100);
-		HAL_UART_Transmit(&huart6, &rx_end, 1, 100);
 
+		// when using desktop use this
+		HAL_UART_Transmit(&huart3, &rx_start, 1, 100);
+		HAL_UART_Transmit(&huart3, (uint8_t*)dis[0], strlen(dis[0]), 100);
+		HAL_UART_Transmit(&huart3, (uint8_t*)dis[1], strlen(dis[1]), 100);
+		HAL_UART_Transmit(&huart3, (uint8_t*)dis[2], strlen(dis[2]), 100);
+		HAL_UART_Transmit(&huart3, &rx_end, 1, 100);
+
+
+		//when using rasberry pi use this
+//		HAL_UART_Transmit(&huart6, &rx_start, 1, 100);
+//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[0], strlen(dis[0]), 100);
+//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[1], strlen(dis[1]), 100);
+//		HAL_UART_Transmit(&huart6, (uint8_t*)dis[2], strlen(dis[2]), 100);
+//		HAL_UART_Transmit(&huart6, &rx_end, 1, 100);
 
 		osDelay(1000);
 	}
@@ -328,7 +347,8 @@ void CheckingUartReceive (void const * argument)
     /* Infinite loop */
     for(;;)
     {
-    	HAL_UART_Receive_IT(&huart3, &rx, 1);
+    	//HAL_UART_Receive_IT(&huart3, &rx, 1);
+    	HAL_UART_Receive_IT(&huart3, &rx_data[0], 1);
     	HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
     	osDelay(10);
     }
@@ -381,9 +401,20 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 
 
+	//STM32 TSET at the Desktop
+	if(huart->Instance == USART3) {
+
+		ret = xQueueSendFromISR(UartQueueHandle, &rx_data[0], &xHigherPriorityTaskWoken );
+		if(ret) {
+			xSemaphoreGiveFromISR( UartSemaHandle, &xHigherPriorityTaskWoken );
+		}
+		else {
+			HAL_UART_Transmit(&huart3, (uint8_t*)pErrStr, strlen(pErrStr), 0xffff);
+		}
+		HAL_UART_Receive_IT(&huart3, &rx_data[0], 1);
+	}
 
 //	portEND_SWITCHING_ISR( xHigherPriorityTaskWoken );
-
 
   /* NOTE: This function should not be modified, when the callback is needed,
            the HAL_UART_RxCpltCallback could be implemented in the user file
@@ -464,7 +495,7 @@ void ThreadInit () {
 	  if(!HS_SR04_Left_Checking)
 		  printf("ERR : HS_SR04_left_Checking Creation Failure !\r\n");
 
-	  osThreadDef(LeftTask, CarLeftSide, osPriorityNormal, 0,configMINIMAL_STACK_SIZE*1);
+	  osThreadDef(LeftTask, SonicDis, osPriorityNormal, 0,configMINIMAL_STACK_SIZE*1);
 	  HS_SR04_Left_Handle = osThreadCreate(osThread(LeftTask), NULL);
 	  if(!HS_SR04_Left_Handle)
 		  printf("ERR : HS_SR04_left_Handle Creation Failure !\r\n");
@@ -497,13 +528,6 @@ void ThreadInit () {
 //Func
 int odo_adjust (int odo_num, ODO_STAT odo_status) {
 
-	// safety speed
-	for(int i = 0; i < 4; i++) {
-		if (pwm_val[i] > 950) {
-			pwm_val[i] = 950;
-		}
-	}
-
 	if (odo_num == 0 && odo_status == UP) {
 		pwm_val[0] += 5;
 	}
@@ -531,7 +555,15 @@ int odo_adjust (int odo_num, ODO_STAT odo_status) {
 	else if (odo_num == 3 && odo_status == DOWN) {
 		pwm_val[3] -= 5;
 	}
+
+
 //---------------------------------------------------------------------
+	// safety speed
+	for(int i = 0; i < 4; i++) {
+		if (pwm_val[i] > 950) {
+			pwm_val[i] = 950;
+		}
+	}
 
 	TIM2->CCR4 = pwm_val[0];		//odo_count[0]
 	TIM2->CCR3 = pwm_val[1];		//odo_count[1]
@@ -540,7 +572,4 @@ int odo_adjust (int odo_num, ODO_STAT odo_status) {
 
 	return 0;
 }
-
-
-
 /* USER CODE END Application */
