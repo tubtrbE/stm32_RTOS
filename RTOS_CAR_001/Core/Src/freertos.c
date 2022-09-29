@@ -73,7 +73,6 @@ osThreadId     Task2Handle;
  * Distance[2], Difference[2] = Right
  * */
 
-//uint32_t hcsr04_dis[3];
 uint32_t pwm_val[4] = {500,500,500,500};
 //uint32_t pwm_val[4] = {950,950,950,950};
 uint8_t rx;
@@ -81,9 +80,6 @@ int ratio = 5;
 int time = 1000;
 int speed = 100;
 CONTROLLER_MODE motor_mode;
-
-uint32_t before_count[4] = {0};
-uint32_t count_gap[4] = {0};
 
 osThreadId     HS_SR04_Left_Checking;
 osThreadId     HS_SR04_Front_Checking;
@@ -93,6 +89,9 @@ osThreadId     HS_SR04_Left_Handle;
 osThreadId     HS_SR04_Front_Handle;
 osThreadId     HS_SR04_Right_Handle;
 uint8_t rx_data[2];
+char pi_buf[20] = {0};
+int avg = 0;
+
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
@@ -156,7 +155,6 @@ void MX_FREERTOS_Init(void) {
 	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_3);
 	  HAL_TIM_IC_Start_IT(&htim8, TIM_CHANNEL_4);
 
-//	  HAL_UART_Receive_IT(&huart3, &rx, 1);
 	  HAL_UART_Receive_IT(&huart3, &rx_data[0], 1);
 	  HAL_UART_Receive_IT(&huart6, &rx_data[0], 1);
   /* USER CODE END Init */
@@ -228,8 +226,8 @@ void StartDefaultTask(void const * argument)
 void CheckingSpeed(void const * argument)
 {
   /* USER CODE BEGIN TempTask01 */
-//	uint32_t before_count[4] = {0};
-//	uint32_t count_gap[4] = {0};
+	uint32_t before_count[4] = {0};
+	uint32_t count_gap[4] = {0};
   /* Infinite loop */
   for(;;)
   {
@@ -248,8 +246,6 @@ void CheckingSpeed(void const * argument)
 				}
 			}
 			before_count[i] = odo_count[i];
-
-
 		}
 		osDelay(50);
   }
@@ -278,11 +274,12 @@ void odometryTask (void const * argument)
 	    BaseType_t xHigherPriorityWasTaken = pdFALSE;
 	    BaseType_t ret = pdTRUE;      // if semaphore is ret you know that isr give you queue
 	    signed char cByteRxed = '\0'; // this value is what you receive
-	    char pi_buf[20] = {0};
+//	    char pi_buf[20] = {0};
 	    int odo_event = 0;
 	    char odo[20] = {0};
 	    int idx = 0;
-		int avg = 0;
+//		int avg = 0;
+		int sum = 0;
 	    BaseType_t read = pdFALSE;
 
 
@@ -293,45 +290,52 @@ void odometryTask (void const * argument)
 			ret = xSemaphoreTakeFromISR(UartSemaHandle, &xHigherPriorityWasTaken);
 			if (ret == pdPASS) {
 				/* Handle character in QUEUE */
-				xQueueReceiveFromISR(UartQueueHandle, &cByteRxed,&xHigherPriorityWasTaken);
 
-				// receive example [1,300] , [direction, odo_count]
-				if(cByteRxed == '[' || read) {
+				xQueueReceiveFromISR(UartQueueHandle, &cByteRxed,&xHigherPriorityWasTaken);
+				if(cByteRxed == '[') {
 					pi_buf[idx++] = cByteRxed;
 					read = pdTRUE;
 				}
 
-				if(cByteRxed == ']') {
-					pi_buf[idx] = 0;
-					read = pdFALSE;
+				while (read) {
+					// receive example [1,300] , [direction, odo_count]
+					xQueueReceiveFromISR(UartQueueHandle, &cByteRxed,&xHigherPriorityWasTaken);
+					pi_buf[idx++] = cByteRxed;
 
-					int direction = pi_buf[1] - '0';
-					// do something . . .
-					if (direction < 7) {
-					Move(pi_buf[1] - '0');
-					memset(pi_buf, 0, sizeof(pi_buf));
-					idx = 0;
+					if(cByteRxed == ']') {
+						pi_buf[idx] = 0;
+
+						int direction = pi_buf[1] - '0';
+						// do something . . .
+						if (direction < 7) {
+						odo_event += (pi_buf[3] - '0') * 1000;
+						odo_event += (pi_buf[4] - '0') * 100;
+						odo_event += (pi_buf[5] - '0') * 10;
+						odo_event += (pi_buf[6] - '0') * 1;
+						Move(direction);
+						read = pdFALSE;
+						memset(pi_buf, 0, sizeof(pi_buf));
+						idx = 0;
+						}
 					}
 				}
+
 
 				//odo_event is the value for the odometry and the sonic detect the thing
-				if(odo_event >= avg) {
-					Move(STOP);
+				for (int i = 0; i < 4; i++) {
+					sum += odo_count[i];
 				}
+				avg = sum / 4;
 
-				//transmit the odo_count to the rp_pi
-				if (pi_buf[1] == '0') {
-					int sum = 0;
-					avg = 0;
-					for (int i = 0; i < 4; i++) {
-						sum += odo_count[i];
-					}
-					avg = sum / 4;
-
+				if(odo_event <= avg) {
+					Move(STOP);
+					//transmit the odo_count to the rp_pi
 					sprintf(odo, "<0,%04d>", avg);
 					HAL_UART_Transmit(&huart3, (uint8_t*) odo, strlen(odo),100);
+					sum = 0;
+					avg = 0;
+					odo_event = 0;
 				}
-
 			}
 			osDelay(10);
 		}
@@ -346,7 +350,7 @@ void odometryTask (void const * argument)
 void CarFrontSide (void const * argument){
 
 	for (;;) {
-    	HCSR04_Read(&htim1, GPIOF, GPIO_PIN_13);
+//    	HCSR04_Read(&htim1, GPIOF, GPIO_PIN_13);
     	osDelay(60);
 	}
 }
@@ -354,7 +358,7 @@ void CheckingLeft (void const * argument) {
     /* Infinite loop */
     for(;;)
     {
-//    	HCSR04_Read(&htim1, GPIOF, GPIO_PIN_13);
+    	HCSR04_Read(&htim1, GPIOF, GPIO_PIN_13);
     	osDelay(60);
     }
 }
@@ -390,11 +394,10 @@ void SonicDis (void const * argument){
 	// hcsr04 test
 	for (;;) {
 
-
 		//when sonic detect the object
 		if(Distance[0] <= DANGER_DIS ||
 		   Distance[1] <= DANGER_DIS ||
-		   Distance[2] <= DANGER_DIS) {
+		   Distance[2] <= DANGER_DIS ) {
 
 			if (motor_mode == AUTO) {
 				//when using rasberry pi use this
@@ -409,14 +412,17 @@ void SonicDis (void const * argument){
 				}
 				avg = sum/4;
 
-				sprintf(odo,"<1,%04d>", avg);
-				HAL_UART_Transmit(&huart3, (uint8_t*)odo, strlen(odo), 100);
 				Move(0);
+				if (avg != 0) {
+					sprintf(odo,"<1,%04d>", avg);
+	 				HAL_UART_Transmit(&huart3, (uint8_t*)odo, strlen(odo), 100);
+				}
 			}
 		}
 		else if (Distance[0] > DANGER_DIS &&
 				 Distance[1] > DANGER_DIS &&
-				 Distance[2] > DANGER_DIS) {
+				 Distance[2] > DANGER_DIS &&
+				 motor_mode == HANDLE) {
 			motor_mode = AUTO;
 		}
 
